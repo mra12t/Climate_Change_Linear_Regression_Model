@@ -1,0 +1,72 @@
+---
+title: "Climate Change"
+output: "github_document"
+date: "2022-12-15"
+---
+# Overview
+The aim of this study is to investigate the connection between the average global temperature and other variables. It has been well documented that the average global temperature has been on the rise for the past 100 years. If this trend continues, it will have disastrous consequences, including rising sea levels and an increase in extreme weather events. These changes will impact billions of people around the world.
+
+# About the Data set
+The file climate_change.csv contains climate data from May 1983 to December 2008. It includes the year and month of the observation, as well as the difference in temperature between the average global temperature in that period and a reference value. The file also includes data on atmospheric concentrations of carbon dioxide (CO2), nitrous oxide (N2O), methane (CH4), trichlorofluoromethane (CFC-11), and dichlorodifluoromethane (CFC-12), as well as the mean stratospheric aerosol optical depth and the total solar irradiance. The file also includes data on the multivariate El Nino Southern Oscillation index (MEI), a measure of the strength of the El Nino/La Nina-Southern Oscillation weather effect.
+
+# Creating the First Model
+
+```{r}
+# loading the data set
+climate = read.csv("climate_change.csv")
+# Sub-setting the data set into training and testing data set with regards of the year
+train = subset(climate, Year <= 2006)
+test = subset(climate, Year > 2006)
+# Creating Linear Regression Model
+climatelm = lm(Temp ~ MEI + CO2 + CH4 + N2O + CFC.11 + CFC.12 + TSI + Aerosols, data = train)
+```
+
+### Finding $R^2$ of the Model and the Significant Variables of the Model
+```{r}
+summary(climatelm)
+```
+$R^2$ = 0.7509.   
+Here, I consider a variable to be significant only if the p-value is below 0.05. Which means variables *MEI*, *CO2*, *CFC.11*, *CFC.12*, *TSI*, and *Aerosols* are all significant.
+
+### Understanding the Model
+According to current scientific opinion, nitrous oxide (N2O) and CFC-11 are greenhouse gases that contribute to the warming of the Earth by trapping heat from the sun. However, the regression coefficients for both N2O and CFC-11 are negative, indicating that higher concentrations of these gases in the atmosphere are associated with lower global temperatures.  
+To try to explain this we can look at the correlation between these two variables and the rest of the independent variables. 
+```{r}
+library(knitr)
+z = cor(train)
+kable(z)
+```
+Here, we can confirm our initial hypothesis by observing that N2O is highly correlated with CO2, CH4, and CFC.12. Furthermore, CFC-11 is also highly correlated with both CH4 and CFC.12. (The threshold at which a variable become highly correlated to another one has been choosen at 0.7)
+
+
+### Simplifying the Model
+Now that we have a deep understanding about our model, we can start make changes and optimizing it. 
+
+```{r}
+simplifiedlm = lm(Temp ~ MEI + CO2 + N2O + TSI + Aerosols, data = train)
+summary(simplifiedlm)
+```
+### Comparing the two Models
+In our new model we can see that $R^2$ has become 0.7357 which is a 0.0152 drop of the previous 0.7509 of the first model. However, the sign of N2O has flipped and the model hasn't lost its explanatory power. This drop will occur because of the high correlation between the variables which is normal given these gases are produced as a result of human's industrial revolution.
+
+### Automating the Optimization Process
+The step() function uses the Akaike information criterion (AIC) to find a good compromise between model simplicity and $R^2$. The AIC is a measure of the quality of the model that takes into account the number of variables in the model. In general, a model with a lower AIC is considered to be a better model, because it is a simpler model that still explains the data well. The step function will try different combinations of variables and select the one that results in the lowest AIC.
+```{r}
+StepModel = step(climatelm)
+summary(StepModel)
+```
+Here, we can see that the step() function has found a model with an $R^2$ of 0.7508 and by excluding CH4 from the independent variables of the model.
+
+
+# Testing the Final Model
+```{r}
+prid = predict(StepModel, newdata = test)
+# Error Sum of Squares 
+SSE = sum((prid-test$Temp)^2)
+# Total Sum of Squares
+SST = sum((mean(train$Temp)-test$Temp)^2)
+#R-Squared
+R2 = 1 - SSE/SST
+R2
+```
+$R^2$ is equal to 0.6286051 which is fair given that our model is a simple Linear Regression Model
